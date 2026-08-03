@@ -410,6 +410,10 @@ const ICONS = {
   gas: '<svg viewBox="0 0 24 24" stroke-width="1.8" fill="none"><path d="M4 21V8a2 2 0 012-2h6a2 2 0 012 2v13M4 21h10M4 11h10M16 8l3 3v6a1.5 1.5 0 003 0v-5l-3-3"/></svg>'
 };
 const CAT_LABEL = { food: 'Food & drink', events: 'Events', outdoors: 'Outdoors', fun: 'Local & fun', shops: 'Shops', gas: 'Gas stations' };
+
+// After deploying worker.js to Cloudflare Workers, paste your worker's URL here.
+// It looks like: https://townscout-proxy.YOUR-SUBDOMAIN.workers.dev
+const API_PROXY_URL = 'https://townscout-proxy.holstler919.workers.dev';
 const CAT_IMAGE = {
   food: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=60',
   events: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=60',
@@ -622,7 +626,11 @@ async function doSearch({ zip, lat, lon }){
     updateHeroImage();
   }catch(err){
     console.error(err);
-    setStatus("Couldn't find that location right now. Try again in a moment.", true);
+    if(String(err.message).includes('API_PROXY_URL')){
+      setStatus('Search backend not set up yet — see README for setup steps.', true);
+    }else{
+      setStatus("Couldn't find that location right now. Try again in a moment.", true);
+    }
     state.places = [];
     state.cityLabel = '';
   }finally{
@@ -676,22 +684,10 @@ async function fetchPlaces({ zip, lat, lon }){
 
   const prompt = `You are a local discovery data source. For ${locationDescriptor}, use web search to find real, currently operating local restaurants or bars, upcoming public events, outdoor recreation spots (trails, parks, overlooks), local attractions or entertainment venues (arcades, galleries, studios, live music), general nearby shops or convenience stores, and gas stations. Cover a radius of about 25 miles for restaurants, events, outdoor spots, and attractions. For shops and gas stations specifically, only include ones within 1 mile of the location — do not include shops or gas stations farther than 1 mile away.
 
-Return ONLY strict JSON with no markdown fences and no commentary, in exactly this shape:
-{"city":"<resolved city name>","state":"<state abbreviation>","places":[{"name":"<real name>","category":"food|events|outdoors|fun|shops|gas","price":"Free|$|$$|$$$|$$$$ or an actual ticket price","distance_mi":<number, best estimate of driving distance from the location, between 0.1 and 25, and 1 or less for shops/gas>,"status":"open|upcoming","blurb":"<one short original sentence, do not quote any source text>","address":"<best-guess street or neighborhood, keep it short>"}]}
-
-Include 16 to 22 places total, spanning all six categories, with at least 2 shops and 2 gas stations if any exist within 1 mile. Only include places you are confident are real and currently operating. Do not invent names.`;
-
- async function fetchPlaces({ zip, lat, lon }){
-  const locationDescriptor = zip
-    ? `the US zip code ${zip}`
-    : `the coordinates ${lat.toFixed(4)}, ${lon.toFixed(4)} (reverse geocode this to find the nearest city or town first)`;
-
-  const prompt = `You are a local discovery data source. For ${locationDescriptor}, use web search to find real, currently operating local restaurants or bars, upcoming public events, outdoor recreation spots (trails, parks, overlooks), local attractions or entertainment venues (arcades, galleries, studios, live music), general nearby shops or convenience stores, and gas stations. Cover a radius of about 25 miles for restaurants, events, outdoor spots, and attractions. For shops and gas stations specifically, only include ones within 1 mile of the location — do not include shops or gas stations farther than 1 mile away.
-
 Return ONLY strict, valid JSON with no markdown fences and no commentary, in exactly this shape:
 {"city":"<resolved city name>","state":"<state abbreviation>","places":[{"name":"<real name>","category":"food|events|outdoors|fun|shops|gas","price":"Free|$|$$|$$$|$$$$ or an actual ticket price","distance_mi":<number, best estimate of driving distance from the location, between 0.1 and 25, and 1 or less for shops/gas>,"status":"open|upcoming","blurb":"<one short original sentence, do not quote any source text>","address":"<best-guess street or neighborhood, keep it short>"}]}
 
-The JSON must be strictly valid: escape any double-quote characters that appear inside a name, blurb, or address (write \" instead of a bare "), and do not include line breaks or control characters inside string values. Include 16 to 22 places total, spanning all six categories, with at least 2 shops and 2 gas stations if any exist within 1 mile. Only include places you are confident are real and currently operating. Do not invent names.`;
+The JSON must be strictly valid: escape any double-quote characters that appear inside a name, blurb, or address (write \\" instead of a bare "), and do not include line breaks or control characters inside string values. Include 16 to 22 places total, spanning all six categories, with at least 2 shops and 2 gas stations if any exist within 1 mile. Only include places you are confident are real and currently operating. Do not invent names.`;
 
   async function callProxy(messages){
     const res = await fetch(API_PROXY_URL, {
